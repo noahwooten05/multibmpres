@@ -1,6 +1,6 @@
 # MultiBMPRes Tool
 
-MultiBMPRes Tool is a C-based utility for managing bitmap resources in a binary resource file (`res.bin`). It allows users to add, list, and retrieve bitmap resources efficiently.
+MultiBMPRes Tool is a C-based utility for managing bitmap resources in a binary resource file. It allows users to add, list, and retrieve bitmap resources efficiently.
 
 ## Features
 
