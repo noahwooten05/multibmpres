@@ -9,6 +9,7 @@
 #define __crt_memcpy memcpy
 #define __crt_strcpy strcpy
 #define __crt_memset memset
+#define __crt_free free
 
 typedef struct _RESOURCE_ITEM {
 	char ResName[256];
@@ -106,9 +107,13 @@ int main(int argc, char** argv) {
 
 				unsigned long OldResListSize = ResListSize;
 				_ResList = MultiBmpClient_AddResWithBmpData(_ResList, &ResListSize, Inbuffer, Data);
+				int GetName = MultiBmpClient_GetResByName(_ResList, Inbuffer);
+				unsigned long MD_Width, MD_Height;
+				MultiBmpClient_GetResSize(_ResList, GetName, &MD_Width, &MD_Height);
 				free(Data);
 
-				printf("Added resource '%s', added %i KiB. (%i%% compression)\n", Inbuffer, (ResListSize - OldResListSize) / 1024, 100 - (((ResListSize - OldResListSize) / OpenData) * 100));
+				double compressionPercentage = (1.0 - ((double)(ResListSize - OldResListSize) / (3 * MD_Width * MD_Height))) * 100.0;
+ 				printf("Added resource '%s', added %i KiB. (%0.2f%% compression)\n", Inbuffer, (ResListSize - OldResListSize) / 1024, compressionPercentage);
 				break;
 			case 2: // list resources
 				int ResCnt = MultiBmpClient_GetResCount(_ResList);
@@ -179,8 +184,12 @@ void* MultiBmpClient_GetBmpDataFromRes(void* _ResList, int i, unsigned short* Wi
 			// get this data
 			void* Return = __crt_malloc(Item->RawDataSize);
 			__crt_memcpy(Return, (char*)_ResList + Item->RawDataLocation, Item->RawDataSize);
+			unsigned long OutSize;
+			void* _Return = MultiBmpClient_Decompress(Return, Item->RawDataSize, &OutSize);
 			*Width = Item->Width;
 			*Height = Item->Height;
+			__crt_free(Return);
+			return _Return;
 		}
 
 		Count++;
@@ -203,7 +212,10 @@ void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSiz
 			void* BitmapData = MultiBmpClient_GetBytesFromBMP(BmpFileData, &Width, &Height, &BPP, &RawSize);
 
 			_ResList = __crt_realloc(_ResList, *ResListSize + RawSize);
-			__crt_memcpy((char*)_ResList + *ResListSize, BitmapData, RawSize);
+			unsigned long _RawSize;
+			void* _BitmapData = MultiBmpClient_Compress(BitmapData, RawSize, &_RawSize);
+			__crt_free(BitmapData);
+			__crt_memcpy((char*)_ResList + *ResListSize, _BitmapData, _RawSize);
 			PRESOURCE_ITEM NewItem = (char*)_ResList + OldNext;
 
 			NewItem->Width = Width;
@@ -211,7 +223,7 @@ void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSiz
 			NewItem->RawDataLocation = *ResListSize;
 			NewItem->RawDataSize = RawSize;
 			__crt_strcpy(NewItem->ResName, Name);
-			*ResListSize += RawSize;
+			*ResListSize += _RawSize;
 			NewItem->NextResource = *ResListSize;
 			
 			_ResList = __crt_realloc(_ResList, *ResListSize + sizeof(RESOURCE_ITEM));
