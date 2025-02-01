@@ -21,5 +21,8 @@
     <ClCompile Include="rle.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="bmp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

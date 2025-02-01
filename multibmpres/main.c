@@ -25,9 +25,10 @@ typedef struct _RESOURCE_LIST {
 int   MultiBmpClient_GetResCount(void* ResList);
 int   MultiBmpClient_GetResByName(void* ResList, char* Name);
 void* MultiBmpClient_GetBmpDataFromRes(void* ResList, int i, unsigned short* Width, unsigned short* Height);
-void* MultiBmpClient_AddResWithBmpData(void* ResList, char* Name, void* BmpFileData);
+void* MultiBmpClient_AddResWithBmpData(void* ResList, unsigned long* ResListSize, char* Name, void* BmpFileData);
 void* MultiBmpClient_Compress(void* RawIn, unsigned long RawSize, unsigned long* OutSize);
 void* MultiBmpClient_Decompress(void* CompIn, unsigned long CompSize, unsigned long* UnCompSize);
+unsigned char* MultiBmpClient_GetBytesFromBMP(unsigned char* fileData, int* width, int* height, int* bytesPerPixel);
 
 int main(int argc, char** argv) {
 	return 0;
@@ -79,9 +80,23 @@ void* MultiBmpClient_GetBmpDataFromRes(void* _ResList, int i, unsigned short* Wi
 		Item = (char*)_ResList + Item->NextResource;
 	} while (Item->NextResource);
 
-	return -1;
+	return NULL;
 }
 
-void* MultiBmpClient_AddResWithBmpData(void* _ResList, char* Name, void* BmpFileData) {
+void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSize, char* Name, void* BmpFileData) {
+	PRESOURCE_LIST ResList = _ResList;
+	PRESOURCE_ITEM Item = (char*)_ResList + ResList->FirstRes;
 
+	do {
+		if (!Item->NextResource) {
+			_ResList = __crt_realloc(_ResList, *ResListSize + sizeof(_RESOURCE_ITEM));
+			PRESOURCE_ITEM NewItem = (char*)_ResList + *ResListSize;
+			*ResListSize += sizeof(_RESOURCE_ITEM);
+
+			unsigned long Width, Height, BPP;
+
+		}
+
+		Item = (char*)_ResList + Item->NextResource;
+	} while (Item->NextResource);
 }
