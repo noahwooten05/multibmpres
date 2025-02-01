@@ -37,6 +37,8 @@ unsigned char* MultiBmpClient_GetBytesFromBMP(unsigned char* fileData, int* widt
 
 
 int main(int argc, char** argv) {
+	//fgetc(stdin);
+
 	if (argc == 1) {
 		// interactive mode
 
@@ -198,7 +200,7 @@ Help:
 			free(BitmapData);
 
 			double compressionPercentage = (1.0 - ((double)(StoreSize - OldStoreSize) / (BMPSize))) * 100.0;
-			printf("Added resource '%s', added %i KiB (%0.2f%% compression)", ResName, (StoreSize - OldStoreSize) / 1024, compressionPercentage);
+			printf("Added resource '%s', added %i KiB (%0.2f%% compression)\n", ResName, (StoreSize - OldStoreSize) / 1024, compressionPercentage);
 			
 			fseek(File, 0, SEEK_SET);
 			fwrite(_ResFile, StoreSize, 1, File);
@@ -304,9 +306,9 @@ void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSiz
 			unsigned long Width, Height, BPP, RawSize;
 			void* BitmapData = MultiBmpClient_GetBytesFromBMP(BmpFileData, &Width, &Height, &BPP, &RawSize);
 
-			_ResList = __crt_realloc(_ResList, *ResListSize + RawSize);
 			unsigned long _RawSize;
 			void* _BitmapData = MultiBmpClient_Compress(BitmapData, RawSize, &_RawSize);
+			_ResList = __crt_realloc(_ResList, *ResListSize + _RawSize);
 			__crt_free(BitmapData);
 			__crt_memcpy((char*)_ResList + *ResListSize, _BitmapData, _RawSize);
 			PRESOURCE_ITEM NewItem = (char*)_ResList + OldNext;
