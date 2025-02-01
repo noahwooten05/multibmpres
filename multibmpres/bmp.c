@@ -32,7 +32,7 @@ typedef struct {
 #pragma pack(pop)
 
 // Function to load BMP file from memory into a byte array
-unsigned char* MultiBmpClient_GetBytesFromBMP(unsigned char* fileData, int* width, int* height, int* bytesPerPixel) {
+unsigned char* MultiBmpClient_GetBytesFromBMP(unsigned char* fileData, int* width, int* height, int* bytesPerPixel, unsigned long* RawDataSize) {
     const unsigned char* dataPtr = fileData;
 
     BMPFileHeader fileHeader;
@@ -66,6 +66,7 @@ unsigned char* MultiBmpClient_GetBytesFromBMP(unsigned char* fileData, int* widt
 
     // Copy pixel data from memory
     __crt_memcpy(pixelData, fileData + fileHeader.bfOffBits, infoHeader.biSizeImage);
+    *RawDataSize = infoHeader.biSizeImage;
 
     return pixelData;
 }
