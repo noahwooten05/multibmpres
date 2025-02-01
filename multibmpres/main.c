@@ -138,6 +138,99 @@ int main(int argc, char** argv) {
 		}
 	} else {
 		// scripting mode
+
+		printf("MultiBMPRes Tool v1.00\n");
+		printf("(c) Noah Wooten, All Rights Reserved 2023-2025\n\n");
+		
+		if (!strcmp(argv[1], "--help")) {
+Help:
+			printf("multibmpres.exe --help: Displays this screen\n");
+			printf("multibmpres.exe file_store.res --add image0.bmp Image0 : Adds an image\n");
+			printf("multibmpres.exe file_store.res --list : Lists all images\n");
+			
+			return 0;
+		}
+
+		FILE* File = fopen(argv[1], "rb");
+		if (!File) {
+			File = fopen(argv[1], "wb");
+			RESOURCE_LIST ResList = { 0 };
+			ResList.FirstRes = 0x4;
+			fwrite(&ResList, sizeof(RESOURCE_LIST), 1, File);
+			RESOURCE_ITEM FirstItem = { 0 };
+			fwrite(&FirstItem, sizeof(RESOURCE_ITEM), 1, File);
+		}
+
+		fclose(File);
+		File = fopen(argv[1], "rb+");
+
+		if (!strcmp(argv[2], "--add")) {
+			char* FileName = argv[3];
+			char* ResName = argv[4];
+			if (!FileName || !ResName) {
+				printf("Missing argument.\n");
+				return 0;
+			}
+
+			unsigned long StoreSize;
+			fseek(File, 0, SEEK_END);
+			StoreSize = ftell(File);
+			fseek(File, 0, SEEK_SET);
+			void* _ResFile = malloc(StoreSize);
+			fread(_ResFile, StoreSize, 1, File);
+
+			FILE* Bitmap = fopen(FileName, "rb");
+			if (!Bitmap) {
+				printf("Failed to open bitmap file.\n");
+				return 0;
+			}
+
+			unsigned long BMPSize;
+			fseek(Bitmap, 0, SEEK_END);
+			BMPSize = ftell(Bitmap);
+			fseek(Bitmap, 0, SEEK_SET);
+			void* BitmapData = malloc(BMPSize);
+			fread(BitmapData, BMPSize, 1, Bitmap);
+			fclose(Bitmap);
+
+			unsigned long OldStoreSize = StoreSize;
+			_ResFile = MultiBmpClient_AddResWithBmpData(_ResFile, &StoreSize, ResName, BitmapData);
+			free(BitmapData);
+
+			double compressionPercentage = (1.0 - ((double)(StoreSize - OldStoreSize) / (BMPSize))) * 100.0;
+			printf("Added resource '%s', added %i KiB (%0.2f%% compression)", ResName, (StoreSize - OldStoreSize) / 1024, compressionPercentage);
+			
+			fseek(File, 0, SEEK_SET);
+			fwrite(_ResFile, StoreSize, 1, File);
+			fflush(File);
+			fclose(File);
+			free(_ResFile);
+			return 0;
+
+		} else if (!strcmp(argv[2], "--list")) {
+			unsigned long StoreSize;
+			fseek(File, 0, SEEK_END);
+			StoreSize = ftell(File);
+			fseek(File, 0, SEEK_SET);
+			void* _ResFile = malloc(StoreSize);
+			fread(_ResFile, StoreSize, 1, File);
+
+			int ResCnt = MultiBmpClient_GetResCount(_ResFile);
+			for (int i = 0; i < ResCnt; i++) {
+				unsigned long Width, Height;
+				unsigned long Compressed = MultiBmpClient_GetResSize(_ResFile, i, &Width, &Height) / 1024;
+				unsigned long FullSize = (Width * Height * 3) / 1024;
+				printf("%i.) '%s' (%ix%i, %i KiB, %i KiB Uncompressed)\n", i + 1, MultiBmpClient_GetResName(_ResFile, i),
+					Width, Height, Compressed, FullSize);
+			}
+
+			free(_ResFile);
+			fclose(File);
+
+			return 0;
+		} else {
+			goto Help;
+		}
 	}
 
 	return 0;
@@ -221,7 +314,7 @@ void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSiz
 			NewItem->Width = Width;
 			NewItem->Height = Height;
 			NewItem->RawDataLocation = *ResListSize;
-			NewItem->RawDataSize = RawSize;
+			NewItem->RawDataSize = _RawSize;
 			__crt_strcpy(NewItem->ResName, Name);
 			*ResListSize += _RawSize;
 			NewItem->NextResource = *ResListSize;
