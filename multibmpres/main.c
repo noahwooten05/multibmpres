@@ -17,6 +17,7 @@ typedef struct _RESOURCE_ITEM {
 	unsigned long RawDataLocation;
 	unsigned long RawDataSize;
 	unsigned long Width, Height;
+	unsigned char NoCompress;
 	
 	unsigned long NextResource;
 }RESOURCE_ITEM, *PRESOURCE_ITEM;
@@ -28,7 +29,7 @@ typedef struct _RESOURCE_LIST {
 int   MultiBmpClient_GetResCount(void* ResList);
 int   MultiBmpClient_GetResByName(void* ResList, char* Name);
 void* MultiBmpClient_GetBmpDataFromRes(void* ResList, int i, unsigned short* Width, unsigned short* Height);
-void* MultiBmpClient_AddResWithBmpData(void* ResList, unsigned long* ResListSize, char* Name, void* BmpFileData);
+void* MultiBmpClient_AddResWithBmpData(void* ResList, unsigned long* ResListSize, char* Name, void* BmpFileData, unsigned char NoCompress);
 void* MultiBmpClient_Compress(void* RawIn, unsigned long RawSize, unsigned long* OutSize);
 void* MultiBmpClient_Decompress(void* CompIn, unsigned long CompSize, unsigned long* UnCompSize);
 char* MultiBmpClient_GetResName(void* _ResList, int i);
@@ -108,7 +109,7 @@ int main(int argc, char** argv) {
 					strstr(Inbuffer, "\n")[0] = 0x00;
 
 				unsigned long OldResListSize = ResListSize;
-				_ResList = MultiBmpClient_AddResWithBmpData(_ResList, &ResListSize, Inbuffer, Data);
+				_ResList = MultiBmpClient_AddResWithBmpData(_ResList, &ResListSize, Inbuffer, Data, 0);
 				int GetName = MultiBmpClient_GetResByName(_ResList, Inbuffer);
 				unsigned long MD_Width, MD_Height;
 				MultiBmpClient_GetResSize(_ResList, GetName, &MD_Width, &MD_Height);
@@ -147,7 +148,7 @@ int main(int argc, char** argv) {
 		if (!strcmp(argv[1], "--help")) {
 Help:
 			printf("multibmpres.exe --help: Displays this screen\n");
-			printf("multibmpres.exe file_store.res --add image0.bmp Image0 : Adds an image\n");
+			printf("multibmpres.exe file_store.res --add (--no-compress) image0.bmp Image0 : Adds an image\n");
 			printf("multibmpres.exe file_store.res --list : Lists all images\n");
 			
 			return 0;
@@ -167,8 +168,17 @@ Help:
 		File = fopen(argv[1], "rb+");
 
 		if (!strcmp(argv[2], "--add")) {
-			char* FileName = argv[3];
-			char* ResName = argv[4];
+			char* FileName, *ResName;
+			unsigned char NoCompress = 0;
+
+			if (!strcmp(argv[3], "--no-compress")) {
+				FileName = argv[4];
+				ResName = argv[5];
+				NoCompress = 1;
+			} else {
+				FileName = argv[3];
+				ResName = argv[4];
+			}
 			if (!FileName || !ResName) {
 				printf("Missing argument.\n");
 				return 0;
@@ -196,7 +206,7 @@ Help:
 			fclose(Bitmap);
 
 			unsigned long OldStoreSize = StoreSize;
-			_ResFile = MultiBmpClient_AddResWithBmpData(_ResFile, &StoreSize, ResName, BitmapData);
+			_ResFile = MultiBmpClient_AddResWithBmpData(_ResFile, &StoreSize, ResName, BitmapData, NoCompress);
 			free(BitmapData);
 
 			double compressionPercentage = (1.0 - ((double)(StoreSize - OldStoreSize) / (BMPSize))) * 100.0;
@@ -295,7 +305,7 @@ void* MultiBmpClient_GetBmpDataFromRes(void* _ResList, int i, unsigned short* Wi
 	return NULL;
 }
 
-void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSize, char* Name, void* BmpFileData) {
+void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSize, char* Name, void* BmpFileData, unsigned char NoCompress) {
 	PRESOURCE_LIST ResList = _ResList;
 	PRESOURCE_ITEM Item = (char*)_ResList + ResList->FirstRes;
 
@@ -307,7 +317,15 @@ void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSiz
 			void* BitmapData = MultiBmpClient_GetBytesFromBMP(BmpFileData, &Width, &Height, &BPP, &RawSize);
 
 			unsigned long _RawSize;
-			void* _BitmapData = MultiBmpClient_Compress(BitmapData, RawSize, &_RawSize);
+			void* _BitmapData = NULL;
+			if (!NoCompress)
+				_BitmapData = MultiBmpClient_Compress(BitmapData, RawSize, &_RawSize);
+			else {
+				_BitmapData = malloc(RawSize);
+				_RawSize = RawSize;
+				memcpy(_BitmapData, BitmapData, RawSize);
+			}
+
 			_ResList = __crt_realloc(_ResList, *ResListSize + _RawSize);
 			__crt_free(BitmapData);
 			__crt_memcpy((char*)_ResList + *ResListSize, _BitmapData, _RawSize);
@@ -317,6 +335,7 @@ void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSiz
 			NewItem->Height = Height;
 			NewItem->RawDataLocation = *ResListSize;
 			NewItem->RawDataSize = _RawSize;
+			NewItem->NoCompress = NoCompress;
 			__crt_strcpy(NewItem->ResName, Name);
 			*ResListSize += _RawSize;
 			NewItem->NextResource = *ResListSize;
