@@ -29,13 +29,33 @@ typedef struct _RESOURCE_LIST {
 int   MultiBmpClient_GetResCount(void* ResList);
 int   MultiBmpClient_GetResByName(void* ResList, char* Name);
 void* MultiBmpClient_GetBmpDataFromRes(void* ResList, int i, unsigned short* Width, unsigned short* Height);
-void* MultiBmpClient_AddResWithBmpData(void* ResList, unsigned long* ResListSize, char* Name, void* BmpFileData, unsigned char NoCompress);
+void* MultiBmpClient_AddResWithBmpData(void* ResList, unsigned long* ResListSize, char* Name, void* BmpFileData, unsigned char NoCompress, unsigned char NoFlip);
 void* MultiBmpClient_Compress(void* RawIn, unsigned long RawSize, unsigned long* OutSize);
 void* MultiBmpClient_Decompress(void* CompIn, unsigned long CompSize, unsigned long* UnCompSize);
 char* MultiBmpClient_GetResName(void* _ResList, int i);
 unsigned long MultiBmpClient_GetResSize(void* _ResList, int i, unsigned long* Width, unsigned long* Height);
 unsigned char* MultiBmpClient_GetBytesFromBMP(unsigned char* fileData, int* width, int* height, int* bytesPerPixel, unsigned long* RawDataSize);
 
+void FlipBitmapVertically(void* Data, unsigned long Width, unsigned long Height) {
+	if (!Data) return;
+
+	unsigned long rowSize = Width * 3;  // Each row is Width * 3 bytes
+	unsigned char* buffer = (unsigned char*)malloc(rowSize);
+	if (!buffer) return;
+
+	unsigned char* pixels = (unsigned char*)Data;
+	for (unsigned long y = 0; y < Height / 2; y++) {
+		unsigned char* rowTop = pixels + (y * rowSize);
+		unsigned char* rowBottom = pixels + ((Height - 1 - y) * rowSize);
+
+		// Swap the two rows
+		memcpy(buffer, rowTop, rowSize);
+		memcpy(rowTop, rowBottom, rowSize);
+		memcpy(rowBottom, buffer, rowSize);
+	}
+
+	free(buffer);
+}
 
 int main(int argc, char** argv) {
 	//fgetc(stdin);
@@ -109,7 +129,7 @@ int main(int argc, char** argv) {
 					strstr(Inbuffer, "\n")[0] = 0x00;
 
 				unsigned long OldResListSize = ResListSize;
-				_ResList = MultiBmpClient_AddResWithBmpData(_ResList, &ResListSize, Inbuffer, Data, 0);
+				_ResList = MultiBmpClient_AddResWithBmpData(_ResList, &ResListSize, Inbuffer, Data, 0, 1);
 				int GetName = MultiBmpClient_GetResByName(_ResList, Inbuffer);
 				unsigned long MD_Width, MD_Height;
 				MultiBmpClient_GetResSize(_ResList, GetName, &MD_Width, &MD_Height);
@@ -148,7 +168,7 @@ int main(int argc, char** argv) {
 		if (!strcmp(argv[1], "--help")) {
 Help:
 			printf("multibmpres.exe --help: Displays this screen\n");
-			printf("multibmpres.exe file_store.res --add (--no-compress) image0.bmp Image0 : Adds an image\n");
+			printf("multibmpres.exe file_store.res --add (--no-compress) (--no-flip) image0.bmp Image0 : Adds an image\n");
 			printf("multibmpres.exe file_store.res --list : Lists all images\n");
 			
 			return 0;
@@ -168,17 +188,27 @@ Help:
 		File = fopen(argv[1], "rb+");
 
 		if (!strcmp(argv[2], "--add")) {
-			char* FileName, *ResName;
-			unsigned char NoCompress = 0;
+			char* FileName = argv[3], *ResName = argv[4];
+			unsigned char NoCompress = 0, NoFlip = 0;
 
 			if (!strcmp(argv[3], "--no-compress")) {
-				FileName = argv[4];
-				ResName = argv[5];
+				if (!strcmp(argv[4], "--no-flip")) {
+					FileName = argv[5];
+					ResName = argv[6];
+					NoFlip = 1;
+				} else {
+					FileName = argv[4];
+					ResName = argv[5];
+				}
 				NoCompress = 1;
 			} else {
-				FileName = argv[3];
-				ResName = argv[4];
+				if (!strcmp(argv[3], "--no-flip")) {
+					FileName = argv[4];
+					ResName = argv[5];
+					NoFlip = 1;
+				}
 			}
+
 			if (!FileName || !ResName) {
 				printf("Missing argument.\n");
 				return 0;
@@ -206,7 +236,7 @@ Help:
 			fclose(Bitmap);
 
 			unsigned long OldStoreSize = StoreSize;
-			_ResFile = MultiBmpClient_AddResWithBmpData(_ResFile, &StoreSize, ResName, BitmapData, NoCompress);
+			_ResFile = MultiBmpClient_AddResWithBmpData(_ResFile, &StoreSize, ResName, BitmapData, NoCompress, NoFlip);
 			free(BitmapData);
 
 			double compressionPercentage = (1.0 - ((double)(StoreSize - OldStoreSize) / (BMPSize))) * 100.0;
@@ -305,7 +335,7 @@ void* MultiBmpClient_GetBmpDataFromRes(void* _ResList, int i, unsigned short* Wi
 	return NULL;
 }
 
-void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSize, char* Name, void* BmpFileData, unsigned char NoCompress) {
+void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSize, char* Name, void* BmpFileData, unsigned char NoCompress, unsigned char NoFlip) {
 	PRESOURCE_LIST ResList = _ResList;
 	PRESOURCE_ITEM Item = (char*)_ResList + ResList->FirstRes;
 
@@ -315,6 +345,8 @@ void* MultiBmpClient_AddResWithBmpData(void* _ResList, unsigned long* ResListSiz
 		if (!Item->RawDataLocation) {
 			unsigned long Width, Height, BPP, RawSize;
 			void* BitmapData = MultiBmpClient_GetBytesFromBMP(BmpFileData, &Width, &Height, &BPP, &RawSize);
+			if (!NoFlip)
+				FlipBitmapVertically(BitmapData, Width, Height);
 
 			unsigned long _RawSize;
 			void* _BitmapData = NULL;
